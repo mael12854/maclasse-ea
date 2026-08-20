@@ -1,0 +1,147 @@
+import { createClient } from "@/lib/supabase/server";
+import {
+  createClassRow,
+  createTeacherClass,
+  deleteTeacherClass,
+  updateProfileAssignment,
+} from "@/lib/actions";
+import type { ClassRow, Profile, TeacherClass } from "@/lib/types";
+
+export default async function AdminPage() {
+  const supabase = await createClient();
+
+  const { data: classes } = await supabase
+    .from("classes")
+    .select("*")
+    .order("name")
+    .returns<ClassRow[]>();
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("*")
+    .order("full_name")
+    .returns<Profile[]>();
+
+  const { data: teacherClasses } = await supabase
+    .from("teacher_classes")
+    .select("*, classes(name), profiles!teacher_classes_teacher_id_fkey(full_name)")
+    .returns<(TeacherClass & { classes: { name: string }; profiles: { full_name: string } })[]>();
+
+  const classNames = new Map((classes ?? []).map((c) => [c.id, c.name]));
+  const teachers = (profiles ?? []).filter((p) => p.role === "prof");
+
+  return (
+    <div className="flex flex-col gap-10">
+      <h1 className="font-display text-2xl font-semibold text-encre">Administration</h1>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-encre">Classes</h2>
+        <ul className="flex flex-wrap gap-2">
+          {(classes ?? []).map((c) => (
+            <li
+              key={c.id}
+              className="rounded-full border border-ardoise/20 bg-blanc px-3 py-1 text-sm text-encre"
+            >
+              {c.name}
+            </li>
+          ))}
+        </ul>
+        <form action={createClassRow} className="flex gap-2">
+          <input
+            name="name"
+            placeholder="Nom de la classe (ex: 4e B)"
+            required
+            className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            className="rounded-full bg-rouge px-4 py-2 text-sm font-medium text-blanc hover:opacity-90"
+          >
+            Créer
+          </button>
+        </form>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-encre">
+          Utilisateurs ({profiles?.length ?? 0})
+        </h2>
+        <div className="flex flex-col gap-2">
+          {(profiles ?? []).map((p) => (
+            <form
+              key={p.id}
+              action={updateProfileAssignment}
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-ardoise/15 bg-blanc p-3 text-sm"
+            >
+              <input type="hidden" name="profile_id" value={p.id} />
+              <span className="min-w-[160px] font-medium text-encre">{p.full_name}</span>
+              <select name="role" defaultValue={p.role} className="rounded-lg border border-ardoise/30 px-2 py-1">
+                <option value="eleve">Élève</option>
+                <option value="prof">Prof</option>
+                <option value="admin">Admin</option>
+              </select>
+              <select name="class_id" defaultValue={p.class_id ?? ""} className="rounded-lg border border-ardoise/30 px-2 py-1">
+                <option value="">— pas de classe —</option>
+                {(classes ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <button className="rounded-full border border-ardoise/30 px-3 py-1 text-ardoise hover:border-rouge hover:text-rouge">
+                Mettre à jour
+              </button>
+            </form>
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-encre">Affectations profs → classes</h2>
+        <ul className="flex flex-col gap-2">
+          {(teacherClasses ?? []).map((tc) => (
+            <li
+              key={tc.id}
+              className="flex items-center justify-between rounded-xl border border-ardoise/15 bg-blanc p-3 text-sm"
+            >
+              <span>
+                {tc.profiles?.full_name} — {tc.subject} — {classNames.get(tc.class_id) ?? tc.classes?.name}
+              </span>
+              <form
+                action={async () => {
+                  "use server";
+                  await deleteTeacherClass(tc.id);
+                }}
+              >
+                <button className="text-xs text-ardoise hover:text-rouge">Retirer</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+        <form action={createTeacherClass} className="flex flex-wrap items-end gap-2">
+          <select name="teacher_id" required className="rounded-lg border border-ardoise/30 px-2 py-2 text-sm">
+            {teachers.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.full_name}
+              </option>
+            ))}
+          </select>
+          <select name="class_id" required className="rounded-lg border border-ardoise/30 px-2 py-2 text-sm">
+            {(classes ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <input name="subject" placeholder="Matière" required className="rounded-lg border border-ardoise/30 px-2 py-2 text-sm" />
+          <button
+            type="submit"
+            className="rounded-full bg-rouge px-4 py-2 text-sm font-medium text-blanc hover:opacity-90"
+          >
+            Affecter
+          </button>
+        </form>
+      </section>
+    </div>
+  );
+}
