@@ -57,8 +57,9 @@ function ConnexionForm() {
   return (
     <div className="flex flex-1 items-center justify-center bg-craie px-6">
       <div className="w-full max-w-sm">
-        <h1 className="font-display text-2xl font-semibold text-encre">
-          MaClasse EA
+        <h1 className="font-display text-2xl font-semibold">
+          <span className="text-encre">MaClasse </span>
+          <span className="text-rouge">EA</span>
         </h1>
         <p className="mt-1 text-sm text-ardoise">
           {mode === "connexion"

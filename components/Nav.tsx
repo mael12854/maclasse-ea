@@ -3,13 +3,19 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/lib/types";
+import type { Profile, Role } from "@/lib/types";
 
 const LINKS = [
   { href: "/devoirs", label: "Devoirs" },
   { href: "/emploi-du-temps", label: "Emploi du temps" },
   { href: "/notes", label: "Notes" },
 ];
+
+const ROLE_BADGE: Record<Role, { label: string; className: string }> = {
+  admin: { label: "Admin", className: "bg-encre text-blanc" },
+  prof: { label: "Prof", className: "bg-vert text-blanc" },
+  eleve: { label: "Élève", className: "bg-or text-encre" },
+};
 
 export default function Nav({ profile }: { profile: Profile }) {
   const pathname = usePathname();
@@ -26,8 +32,9 @@ export default function Nav({ profile }: { profile: Profile }) {
     <header className="border-b border-ardoise/15 bg-blanc">
       <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-8">
-          <Link href="/devoirs" className="font-display text-lg font-semibold text-encre">
-            MaClasse EA
+          <Link href="/devoirs" className="font-display text-lg font-semibold">
+            <span className="text-encre">MaClasse </span>
+            <span className="text-rouge">EA</span>
           </Link>
           <nav className="flex items-center gap-5 text-sm">
             {LINKS.map((link) => (
@@ -58,9 +65,11 @@ export default function Nav({ profile }: { profile: Profile }) {
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-ardoise">
-            {profile.full_name}
-            <span className="ml-1 text-xs">({profile.role})</span>
+          <span className="text-ardoise">{profile.full_name}</span>
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_BADGE[profile.role].className}`}
+          >
+            {ROLE_BADGE[profile.role].label}
           </span>
           <button
             onClick={handleSignOut}

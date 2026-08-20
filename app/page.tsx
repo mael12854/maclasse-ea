@@ -4,8 +4,9 @@ export default function Home() {
   return (
     <div className="flex flex-1 flex-col bg-craie">
       <header className="border-b border-ardoise/15 px-6 py-5">
-        <span className="font-display text-lg font-semibold tracking-tight text-encre">
-          MaClasse EA
+        <span className="font-display text-lg font-semibold tracking-tight">
+          <span className="text-encre">MaClasse </span>
+          <span className="text-rouge">EA</span>
         </span>
       </header>
 
