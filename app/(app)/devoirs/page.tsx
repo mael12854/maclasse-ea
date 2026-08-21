@@ -2,7 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createHomework, deleteHomework } from "@/lib/actions";
 import type { ClassRow, Homework, Profile, TeacherClass } from "@/lib/types";
 
-export default async function DevoirsPage() {
+export default async function DevoirsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ publie?: string; supprime?: string }>;
+}) {
+  const sp = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -51,6 +56,13 @@ export default async function DevoirsPage() {
   return (
     <div className="flex flex-col gap-8">
       <h1 className="font-display text-2xl font-semibold text-encre">Devoirs</h1>
+
+      {sp.publie && (
+        <p className="rounded-lg bg-vert/10 px-3 py-2 text-sm text-vert">Devoir publié.</p>
+      )}
+      {sp.supprime && (
+        <p className="rounded-lg bg-vert/10 px-3 py-2 text-sm text-vert">Devoir supprimé.</p>
+      )}
 
       {canPost && (
         <form

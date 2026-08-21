@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createHomework(formData: FormData) {
@@ -38,6 +39,7 @@ export async function createHomework(formData: FormData) {
   }
 
   revalidatePath("/devoirs");
+  redirect("/devoirs?publie=1");
 }
 
 export async function deleteHomework(id: string) {
@@ -53,6 +55,7 @@ export async function deleteHomework(id: string) {
   const { error } = await supabase.from("homework").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/devoirs");
+  redirect("/devoirs?supprime=1");
 }
 
 export async function createGrade(formData: FormData) {
