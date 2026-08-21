@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/notes", label: "Notes" },
   { href: "/bulletin", label: "Bulletin" },
   { href: "/absences", label: "Absences" },
+  { href: "/documents", label: "Documents" },
 ];
 
 const ROLE_BADGE: Record<Role, { label: string; className: string }> = {

@@ -96,6 +96,32 @@ export type Child = {
   class_id: string | null;
 };
 
+export type DocumentRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  requires_response: boolean;
+  target_roles: Role[];
+  created_by: string | null;
+  created_at: string;
+};
+
+export type DocumentField = {
+  id: string;
+  document_id: string;
+  label: string;
+  field_type: "text" | "textarea" | "checkbox";
+  position: number;
+};
+
+export type DocumentResponse = {
+  id: string;
+  document_id: string;
+  responder_id: string;
+  answers: Record<string, string | boolean>;
+  submitted_at: string;
+};
+
 export const DAYS_OF_WEEK = [
   "Lundi",
   "Mardi",

@@ -229,6 +229,97 @@ export async function deleteParentLink(id: string) {
   revalidatePath("/admin");
 }
 
+export async function createDocument(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non connecté");
+
+  const requiresResponse = formData.get("requires_response") === "on";
+  const targetRoles = formData.getAll("target_roles") as string[];
+
+  const { data: doc, error } = await supabase
+    .from("documents")
+    .insert({
+      title: formData.get("title") as string,
+      description: (formData.get("description") as string) || null,
+      requires_response: requiresResponse,
+      target_roles: targetRoles.length > 0 ? targetRoles : ["admin", "prof", "eleve", "parent"],
+      created_by: user.id,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  if (requiresResponse) {
+    const fieldRows = [1, 2, 3, 4, 5, 6]
+      .map((i) => ({
+        label: ((formData.get(`field_label_${i}`) as string) || "").trim(),
+        field_type: (formData.get(`field_type_${i}`) as string) || "text",
+        position: i,
+      }))
+      .filter((f) => f.label.length > 0);
+
+    if (fieldRows.length > 0) {
+      const { error: fieldsError } = await supabase.from("document_fields").insert(
+        fieldRows.map((f) => ({
+          document_id: doc.id,
+          label: f.label,
+          field_type: f.field_type,
+          position: f.position,
+        }))
+      );
+      if (fieldsError) throw new Error(fieldsError.message);
+    }
+  }
+
+  revalidatePath("/documents");
+}
+
+export async function deleteDocument(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("documents").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/documents");
+}
+
+export async function submitDocumentResponse(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non connecté");
+
+  const documentId = formData.get("document_id") as string;
+  const { data: fields } = await supabase
+    .from("document_fields")
+    .select("*")
+    .eq("document_id", documentId);
+
+  const answers: Record<string, string | boolean> = {};
+  for (const f of fields ?? []) {
+    if (f.field_type === "checkbox") {
+      answers[f.id] = formData.get(`field_${f.id}`) === "on";
+    } else {
+      answers[f.id] = (formData.get(`field_${f.id}`) as string) || "";
+    }
+  }
+
+  const { error } = await supabase.from("document_responses").upsert(
+    {
+      document_id: documentId,
+      responder_id: user.id,
+      answers,
+      submitted_at: new Date().toISOString(),
+    },
+    { onConflict: "document_id,responder_id" }
+  );
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/documents");
+}
+
 export async function createClassRow(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("classes").insert({
