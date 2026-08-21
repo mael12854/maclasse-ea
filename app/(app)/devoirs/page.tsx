@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { createHomework, deleteHomework } from "@/lib/actions";
+import { getChildren, pickChild } from "@/lib/parent";
 import type { ClassRow, Homework, Profile, TeacherClass } from "@/lib/types";
 
 export default async function DevoirsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ publie?: string; supprime?: string }>;
+  searchParams: Promise<{ publie?: string; supprime?: string; child_id?: string }>;
 }) {
   const sp = await searchParams;
   const supabase = await createClient();
@@ -19,11 +20,16 @@ export default async function DevoirsPage({
     .eq("id", user!.id)
     .single<Profile>();
 
-  const { data: homework } = await supabase
-    .from("homework")
-    .select("*")
-    .order("due_date", { ascending: true })
-    .returns<Homework[]>();
+  const children = profile?.role === "parent" ? await getChildren(supabase, profile.id) : [];
+  const selectedChild = profile?.role === "parent" ? pickChild(children, sp.child_id) : null;
+
+  let homeworkQuery = supabase.from("homework").select("*").order("due_date", { ascending: true });
+  if (profile?.role === "parent") {
+    homeworkQuery = selectedChild?.class_id
+      ? homeworkQuery.eq("class_id", selectedChild.class_id)
+      : homeworkQuery.eq("class_id", "00000000-0000-0000-0000-000000000000");
+  }
+  const { data: homework } = await homeworkQuery.returns<Homework[]>();
 
   const attachmentUrls = new Map<string, string>();
   for (const hw of homework ?? []) {
@@ -55,7 +61,32 @@ export default async function DevoirsPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="font-display text-2xl font-semibold text-encre">Devoirs</h1>
+      <h1 className="font-display text-2xl font-semibold text-encre">
+        Devoirs{selectedChild ? ` — ${selectedChild.full_name}` : ""}
+      </h1>
+
+      {profile?.role === "parent" && children.length > 1 && (
+        <form action="/devoirs" className="flex items-end gap-2">
+          <select
+            name="child_id"
+            defaultValue={selectedChild?.id}
+            className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+          >
+            {children.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.full_name}
+              </option>
+            ))}
+          </select>
+          <button className="rounded-full border border-ardoise/30 px-3 py-1.5 text-xs text-ardoise hover:border-rouge hover:text-rouge">
+            Voir
+          </button>
+        </form>
+      )}
+
+      {profile?.role === "parent" && children.length === 0 && (
+        <p className="text-sm text-ardoise">Aucun enfant rattaché pour l&apos;instant.</p>
+      )}
 
       {sp.publie && (
         <p className="rounded-lg bg-vert/10 px-3 py-2 text-sm text-vert">Devoir publié.</p>

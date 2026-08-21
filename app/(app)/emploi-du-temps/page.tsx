@@ -1,9 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { createTimetableSlot, deleteTimetableSlot } from "@/lib/actions";
+import { getChildren, pickChild } from "@/lib/parent";
 import { DAYS_OF_WEEK } from "@/lib/types";
 import type { ClassRow, Profile, TimetableSlot } from "@/lib/types";
 
-export default async function EmploiDuTempsPage() {
+export default async function EmploiDuTempsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ child_id?: string }>;
+}) {
+  const sp = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -15,12 +21,16 @@ export default async function EmploiDuTempsPage() {
     .eq("id", user!.id)
     .single<Profile>();
 
-  const { data: slots } = await supabase
-    .from("timetable_slots")
-    .select("*")
-    .order("day_of_week")
-    .order("start_time")
-    .returns<TimetableSlot[]>();
+  const children = profile?.role === "parent" ? await getChildren(supabase, profile.id) : [];
+  const selectedChild = profile?.role === "parent" ? pickChild(children, sp.child_id) : null;
+
+  let slotsQuery = supabase.from("timetable_slots").select("*").order("day_of_week").order("start_time");
+  if (profile?.role === "parent") {
+    slotsQuery = selectedChild?.class_id
+      ? slotsQuery.eq("class_id", selectedChild.class_id)
+      : slotsQuery.eq("class_id", "00000000-0000-0000-0000-000000000000");
+  }
+  const { data: slots } = await slotsQuery.returns<TimetableSlot[]>();
 
   let classOptions: ClassRow[] = [];
   if (profile?.role === "admin") {
@@ -38,7 +48,32 @@ export default async function EmploiDuTempsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="font-display text-2xl font-semibold text-encre">Emploi du temps</h1>
+      <h1 className="font-display text-2xl font-semibold text-encre">
+        Emploi du temps{selectedChild ? ` — ${selectedChild.full_name}` : ""}
+      </h1>
+
+      {profile?.role === "parent" && children.length > 1 && (
+        <form action="/emploi-du-temps" className="flex items-end gap-2">
+          <select
+            name="child_id"
+            defaultValue={selectedChild?.id}
+            className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+          >
+            {children.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.full_name}
+              </option>
+            ))}
+          </select>
+          <button className="rounded-full border border-ardoise/30 px-3 py-1.5 text-xs text-ardoise hover:border-rouge hover:text-rouge">
+            Voir
+          </button>
+        </form>
+      )}
+
+      {profile?.role === "parent" && children.length === 0 && (
+        <p className="text-sm text-ardoise">Aucun enfant rattaché pour l&apos;instant.</p>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {DAYS_OF_WEEK.slice(0, 6).map((day, i) => {
