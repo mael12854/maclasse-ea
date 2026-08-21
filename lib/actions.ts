@@ -4,6 +4,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+function sanitizeFilename(name: string) {
+  const lastDot = name.lastIndexOf(".");
+  const base = lastDot > 0 ? name.slice(0, lastDot) : name;
+  const ext = lastDot > 0 ? name.slice(lastDot) : "";
+  const safeBase = base
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // accents
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `${safeBase || "fichier"}${ext.toLowerCase()}`;
+}
+
 export async function createHomework(formData: FormData) {
   const supabase = await createClient();
   const {
@@ -27,7 +40,7 @@ export async function createHomework(formData: FormData) {
 
   const file = formData.get("attachment") as File | null;
   if (file && file.size > 0) {
-    const path = `${homework.id}/${file.name}`;
+    const path = `${homework.id}/${sanitizeFilename(file.name)}`;
     const { error: uploadError } = await supabase.storage.from("devoirs").upload(path, file);
     if (uploadError) throw new Error(uploadError.message);
 
