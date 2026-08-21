@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createGrade, deleteGrade } from "@/lib/actions";
+import { NIVEAUX, TRIMESTRES, currentTrimestre, niveauInfo } from "@/lib/types";
 import type { Grade, Profile, TeacherClass } from "@/lib/types";
 
 export default async function NotesPage() {
@@ -53,31 +54,36 @@ export default async function NotesPage() {
     students = s ?? [];
   }
 
-  const average =
+  const overall =
     profile?.role === "eleve" && grades && grades.length > 0
-      ? (
-          grades.reduce((sum, g) => sum + (g.grade / g.max_grade) * 20 * g.coefficient, 0) /
-          grades.reduce((sum, g) => sum + g.coefficient, 0)
-        ).toFixed(2)
+      ? grades.reduce((sum, g) => sum + g.niveau * g.coefficient, 0) /
+        grades.reduce((sum, g) => sum + g.coefficient, 0)
       : null;
 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-encre">Notes</h1>
-        {average && (
+        {overall !== null && (
           <p className="text-sm text-ardoise">
-            Moyenne générale : <span className="font-semibold text-rouge">{average}/20</span>
+            Niveau général :{" "}
+            <span className="font-semibold text-rouge">
+              {niveauInfo(overall).symbol} {niveauInfo(overall).label}
+            </span>
           </p>
         )}
       </div>
+
+      <p className="text-xs text-ardoise">
+        Légende : {NIVEAUX.map((n) => `${n.symbol} ${n.label}`).join(" · ")}
+      </p>
 
       {canPost && (
         <form
           action={createGrade}
           className="flex flex-wrap items-end gap-3 rounded-xl border border-ardoise/15 bg-blanc p-5"
         >
-          <h2 className="w-full text-sm font-medium text-ardoise">Ajouter une note</h2>
+          <h2 className="w-full text-sm font-medium text-ardoise">Ajouter une évaluation</h2>
           <select name="student_id" required className="rounded-lg border border-ardoise/30 px-3 py-2">
             {students.map((s) => (
               <option key={s.id} value={s.id}>
@@ -96,22 +102,24 @@ export default async function NotesPage() {
           ) : (
             <input name="subject" placeholder="Matière" required className="rounded-lg border border-ardoise/30 px-3 py-2" />
           )}
-          <input
-            type="number"
-            step="0.25"
-            name="grade"
-            placeholder="Note"
-            required
-            className="w-24 rounded-lg border border-ardoise/30 px-3 py-2"
-          />
-          <input
-            type="number"
-            step="0.5"
-            name="max_grade"
-            placeholder="Sur"
-            defaultValue={20}
-            className="w-20 rounded-lg border border-ardoise/30 px-3 py-2"
-          />
+          <select name="niveau" required className="rounded-lg border border-ardoise/30 px-3 py-2">
+            {NIVEAUX.map((n) => (
+              <option key={n.value} value={n.value}>
+                {n.symbol} {n.label}
+              </option>
+            ))}
+          </select>
+          <select
+            name="trimestre"
+            defaultValue={currentTrimestre()}
+            className="rounded-lg border border-ardoise/30 px-3 py-2"
+          >
+            {TRIMESTRES.map((t) => (
+              <option key={t} value={t}>
+                Trimestre {t}
+              </option>
+            ))}
+          </select>
           <input
             type="number"
             step="0.5"
@@ -141,11 +149,11 @@ export default async function NotesPage() {
               <p className="text-xs font-medium uppercase tracking-wide text-rouge">
                 {g.subject}
                 {profile?.role !== "eleve" ? ` · ${studentNames.get(g.student_id) ?? ""}` : ""}
-                {" · "}
+                {` · T${g.trimestre} · `}
                 {new Date(g.graded_at).toLocaleDateString("fr-FR")}
               </p>
               <p className="mt-1 font-medium text-encre">
-                {g.grade}/{g.max_grade}{" "}
+                {niveauInfo(g.niveau).symbol} {niveauInfo(g.niveau).label}{" "}
                 <span className="text-sm font-normal text-ardoise">coeff. {g.coefficient}</span>
               </p>
               {g.comment && <p className="mt-1 text-sm text-ardoise">{g.comment}</p>}
@@ -163,7 +171,7 @@ export default async function NotesPage() {
           </li>
         ))}
         {(grades ?? []).length === 0 && (
-          <p className="text-sm text-ardoise">Aucune note pour l&apos;instant.</p>
+          <p className="text-sm text-ardoise">Aucune évaluation pour l&apos;instant.</p>
         )}
       </ul>
     </div>

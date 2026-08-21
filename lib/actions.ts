@@ -49,9 +49,9 @@ export async function createGrade(formData: FormData) {
     student_id: studentId,
     class_id: student.class_id,
     subject: formData.get("subject") as string,
-    grade: Number(formData.get("grade")),
-    max_grade: Number(formData.get("max_grade") || 20),
+    niveau: Number(formData.get("niveau")),
     coefficient: Number(formData.get("coefficient") || 1),
+    trimestre: Number(formData.get("trimestre") || 1),
     comment: (formData.get("comment") as string) || null,
     graded_at: (formData.get("graded_at") as string) || new Date().toISOString().slice(0, 10),
     created_by: user.id,
@@ -66,6 +66,30 @@ export async function deleteGrade(id: string) {
   const { error } = await supabase.from("grades").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/notes");
+}
+
+export async function upsertAppreciation(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non connecté");
+
+  const { error } = await supabase.from("appreciations").upsert(
+    {
+      student_id: formData.get("student_id") as string,
+      class_id: formData.get("class_id") as string,
+      subject: formData.get("subject") as string,
+      trimestre: Number(formData.get("trimestre")),
+      comment: formData.get("comment") as string,
+      created_by: user.id,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "student_id,subject,trimestre" }
+  );
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/bulletin");
 }
 
 export async function createClassRow(formData: FormData) {
