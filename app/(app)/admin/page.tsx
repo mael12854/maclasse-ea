@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   createClassRow,
   createTeacherClass,
+  createUser,
   deleteTeacherClass,
   updateGradeLevel,
   updateProfileAssignment,
@@ -95,6 +96,68 @@ export default async function AdminPage() {
           <button
             type="submit"
             className="rounded-full bg-rouge px-4 py-2 text-sm font-medium text-blanc hover:opacity-90"
+          >
+            Créer
+          </button>
+        </form>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-encre">Créer un utilisateur</h2>
+        <form
+          action={createUser}
+          className="flex flex-wrap items-end gap-3 rounded-xl border border-ardoise/15 bg-blanc p-5"
+        >
+          <label className="flex flex-col gap-1 text-sm text-encre">
+            Nom complet
+            <input
+              name="full_name"
+              required
+              className="rounded-lg border border-ardoise/30 px-3 py-2"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-encre">
+            Email
+            <input
+              type="email"
+              name="email"
+              required
+              className="rounded-lg border border-ardoise/30 px-3 py-2"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-encre">
+            Mot de passe
+            <input
+              type="text"
+              name="password"
+              required
+              minLength={6}
+              placeholder="À communiquer à l'utilisateur"
+              className="rounded-lg border border-ardoise/30 px-3 py-2"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-encre">
+            Rôle
+            <select name="role" defaultValue="eleve" className="rounded-lg border border-ardoise/30 px-3 py-2">
+              <option value="eleve">Élève</option>
+              <option value="prof">Prof</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-encre">
+            Classe (si élève)
+            <select name="class_id" className="rounded-lg border border-ardoise/30 px-3 py-2">
+              <option value="">— pas de classe —</option>
+              {(classes ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="rounded-full bg-rouge px-5 py-2 text-sm font-medium text-blanc hover:opacity-90"
           >
             Créer
           </button>

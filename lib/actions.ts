@@ -113,6 +113,36 @@ export async function updateGradeLevel(formData: FormData) {
   revalidatePath("/bulletin");
 }
 
+export async function createUser(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/admin-create-user`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      email: formData.get("email"),
+      password: formData.get("password"),
+      full_name: formData.get("full_name"),
+      role: formData.get("role"),
+      class_id: formData.get("class_id") || null,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Erreur lors de la création de l'utilisateur.");
+  }
+
+  revalidatePath("/admin");
+}
+
 export async function createClassRow(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("classes").insert({
