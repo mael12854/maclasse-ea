@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Profile, Role } from "@/lib/types";
 
 const LINKS = [
+  { href: "/accueil", label: "Accueil" },
   { href: "/devoirs", label: "Devoirs" },
   { href: "/emploi-du-temps", label: "Emploi du temps" },
   { href: "/notes", label: "Notes" },
@@ -36,7 +37,7 @@ export default function Nav({ profile }: { profile: Profile }) {
     <header className="print:hidden border-b border-ardoise/15 bg-blanc">
       <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-8">
-          <Link href="/devoirs" className="font-display text-lg font-semibold">
+          <Link href="/accueil" className="font-display text-lg font-semibold">
             <span className="text-encre">MaClasse </span>
             <span className="text-rouge">EA</span>
           </Link>

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED_PREFIXES = [
+  "/accueil",
   "/devoirs",
   "/emploi-du-temps",
   "/notes",
@@ -68,6 +69,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/accueil/:path*",
     "/devoirs/:path*",
     "/emploi-du-temps/:path*",
     "/notes/:path*",

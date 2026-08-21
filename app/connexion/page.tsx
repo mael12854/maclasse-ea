@@ -16,7 +16,7 @@ export default function ConnexionPage() {
 function ConnexionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/devoirs";
+  const next = searchParams.get("next") ?? "/accueil";
 
   const [mode, setMode] = useState<"connexion" | "inscription">("connexion");
   const [email, setEmail] = useState("");
