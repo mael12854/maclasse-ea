@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -116,6 +117,15 @@ function ConnexionForm() {
                 : "Créer mon compte"}
           </button>
         </form>
+
+        {mode === "connexion" && (
+          <Link
+            href="/mot-de-passe-oublie"
+            className="mt-3 block text-sm text-ardoise underline underline-offset-2"
+          >
+            Mot de passe oublié ?
+          </Link>
+        )}
 
         <button
           type="button"
