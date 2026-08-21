@@ -68,20 +68,23 @@ export async function deleteGrade(id: string) {
   revalidatePath("/notes");
 }
 
-export async function upsertAppreciation(formData: FormData) {
+export async function upsertBulletinEntry(formData: FormData) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Non connecté");
 
-  const { error } = await supabase.from("appreciations").upsert(
+  const niveauRaw = formData.get("niveau") as string | null;
+
+  const { error } = await supabase.from("bulletin_entries").upsert(
     {
       student_id: formData.get("student_id") as string,
       class_id: formData.get("class_id") as string,
       subject: formData.get("subject") as string,
       trimestre: Number(formData.get("trimestre")),
-      comment: formData.get("comment") as string,
+      niveau: niveauRaw ? Number(niveauRaw) : null,
+      comment: (formData.get("comment") as string) ?? "",
       created_by: user.id,
       updated_at: new Date().toISOString(),
     },
@@ -89,6 +92,24 @@ export async function upsertAppreciation(formData: FormData) {
   );
   if (error) throw new Error(error.message);
 
+  revalidatePath("/bulletin");
+}
+
+export async function updateGradeLevel(formData: FormData) {
+  const supabase = await createClient();
+  const value = Number(formData.get("value"));
+
+  const { error } = await supabase
+    .from("grade_levels")
+    .update({
+      symbol: formData.get("symbol") as string,
+      label: formData.get("label") as string,
+    })
+    .eq("value", value);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin");
+  revalidatePath("/notes");
   revalidatePath("/bulletin");
 }
 

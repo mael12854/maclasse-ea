@@ -1,13 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { upsertAppreciation } from "@/lib/actions";
-import { NIVEAUX, TRIMESTRES, currentTrimestre, niveauInfo } from "@/lib/types";
-import type { Appreciation, ClassRow, Grade, Profile, TeacherClass } from "@/lib/types";
-
-function subjectNiveau(items: Grade[]) {
-  const totalCoeff = items.reduce((sum, g) => sum + g.coefficient, 0);
-  if (totalCoeff === 0) return null;
-  return items.reduce((sum, g) => sum + g.niveau * g.coefficient, 0) / totalCoeff;
-}
+import { upsertBulletinEntry } from "@/lib/actions";
+import { TRIMESTRES, currentTrimestre, levelInfo } from "@/lib/types";
+import type { BulletinEntry, ClassRow, GradeLevel, Profile, TeacherClass } from "@/lib/types";
+import NiveauSelect from "@/components/NiveauSelect";
+import PrintButton from "@/components/PrintButton";
 
 function withParams(base: Record<string, string | undefined>, overrides: Record<string, string>) {
   const params = new URLSearchParams();
@@ -38,8 +34,15 @@ export default async function BulletinPage({
 
   if (!profile) return null;
 
+  const { data: levelsData } = await supabase
+    .from("grade_levels")
+    .select("*")
+    .order("value")
+    .returns<GradeLevel[]>();
+  const levels = levelsData ?? [];
+
   const trimestreTabs = (base: Record<string, string | undefined>) => (
-    <div className="flex gap-2">
+    <div className="print:hidden flex gap-2">
       {TRIMESTRES.map((t) => (
         <a
           key={t}
@@ -56,42 +59,53 @@ export default async function BulletinPage({
     </div>
   );
 
-  const legend = (
-    <p className="text-xs text-ardoise">
-      Légende : {NIVEAUX.map((n) => `${n.symbol} ${n.label}`).join(" · ")}
-    </p>
-  );
-
   // --- Élève : son propre bulletin, lecture seule ---
   if (profile.role === "eleve") {
     if (!profile.class_id) {
       return <p className="text-sm text-ardoise">Aucune classe assignée pour l&apos;instant.</p>;
     }
 
-    const { data: grades } = await supabase
-      .from("grades")
+    const { data: classRow } = await supabase
+      .from("classes")
       .select("*")
-      .eq("student_id", profile.id)
-      .eq("trimestre", trimestre)
-      .returns<Grade[]>();
+      .eq("id", profile.class_id)
+      .single<ClassRow>();
 
-    const { data: appreciations } = await supabase
-      .from("appreciations")
+    const { data: teacherSubjects } = await supabase
+      .from("teacher_classes")
+      .select("subject")
+      .eq("class_id", profile.class_id);
+
+    const { data: entries } = await supabase
+      .from("bulletin_entries")
       .select("*")
       .eq("student_id", profile.id)
       .eq("trimestre", trimestre)
-      .returns<Appreciation[]>();
+      .returns<BulletinEntry[]>();
+
+    const subjects = [
+      ...new Set([...(teacherSubjects ?? []).map((t) => t.subject), ...(entries ?? []).map((e) => e.subject)]),
+    ].sort();
 
     return (
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl font-semibold text-encre">Bulletin</h1>
-          {trimestreTabs({})}
+          <div>
+            <h1 className="font-display text-2xl font-semibold text-encre">Bulletin</h1>
+            <p className="text-sm text-ardoise">
+              {classRow?.name} — Trimestre {trimestre}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {trimestreTabs({})}
+            <PrintButton />
+          </div>
         </div>
-        {legend}
+
         <BulletinTable
-          grades={grades ?? []}
-          appreciations={appreciations ?? []}
+          subjects={subjects}
+          entries={entries ?? []}
+          levels={levels}
           editableSubjects={new Set()}
           formContext={null}
         />
@@ -129,9 +143,9 @@ export default async function BulletinPage({
     return <p className="text-sm text-ardoise">Aucune classe assignée pour l&apos;instant.</p>;
   }
 
-  const selectedClassId = sp.class_id && classOptions.some((c) => c.id === sp.class_id)
-    ? sp.class_id
-    : classOptions[0].id;
+  const selectedClassId =
+    sp.class_id && classOptions.some((c) => c.id === sp.class_id) ? sp.class_id : classOptions[0].id;
+  const selectedClass = classOptions.find((c) => c.id === selectedClassId)!;
 
   const { data: studentsInClass } = await supabase
     .from("profiles")
@@ -152,64 +166,74 @@ export default async function BulletinPage({
     );
   }
 
-  const selectedStudentId = sp.student_id && students.some((s) => s.id === sp.student_id)
-    ? sp.student_id
-    : students[0].id;
+  const selectedStudentId =
+    sp.student_id && students.some((s) => s.id === sp.student_id) ? sp.student_id : students[0].id;
+  const selectedStudent = students.find((s) => s.id === selectedStudentId)!;
 
-  const { data: grades } = await supabase
-    .from("grades")
+  const { data: classTeacherSubjects } = await supabase
+    .from("teacher_classes")
+    .select("subject")
+    .eq("class_id", selectedClassId);
+
+  const { data: entries } = await supabase
+    .from("bulletin_entries")
     .select("*")
     .eq("student_id", selectedStudentId)
     .eq("trimestre", trimestre)
-    .returns<Grade[]>();
+    .returns<BulletinEntry[]>();
 
-  const { data: appreciations } = await supabase
-    .from("appreciations")
-    .select("*")
-    .eq("student_id", selectedStudentId)
-    .eq("trimestre", trimestre)
-    .returns<Appreciation[]>();
+  const subjects = [
+    ...new Set([...(classTeacherSubjects ?? []).map((t) => t.subject), ...(entries ?? []).map((e) => e.subject)]),
+  ].sort();
 
   const editableSubjects =
     profile.role === "admin"
       ? null // null = tout éditable
-      : new Set(
-          teacherClasses
-            .filter((tc) => tc.class_id === selectedClassId)
-            .map((tc) => tc.subject)
-        );
+      : new Set(teacherClasses.filter((tc) => tc.class_id === selectedClassId).map((tc) => tc.subject));
 
   const baseParams = { class_id: selectedClassId, student_id: selectedStudentId };
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-encre">Bulletin</h1>
-        {trimestreTabs(baseParams)}
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-encre">Bulletin</h1>
+          <p className="text-sm text-ardoise">
+            {selectedStudent.full_name} — {selectedClass.name} — Trimestre {trimestre}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {trimestreTabs(baseParams)}
+          <PrintButton />
+        </div>
       </div>
 
-      <ClassPicker classOptions={classOptions} selectedClassId={selectedClassId} trimestre={trimestre} />
-
-      <form action="/bulletin" className="flex flex-wrap items-end gap-2">
-        <input type="hidden" name="class_id" value={selectedClassId} />
-        <input type="hidden" name="trimestre" value={trimestre} />
-        <select name="student_id" defaultValue={selectedStudentId} className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm">
-          {students.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.full_name}
-            </option>
-          ))}
-        </select>
-        <button className="rounded-full border border-ardoise/30 px-3 py-1.5 text-xs text-ardoise hover:border-rouge hover:text-rouge">
-          Voir
-        </button>
-      </form>
-
-      {legend}
+      <div className="print:hidden flex flex-wrap items-end gap-3">
+        <ClassPicker classOptions={classOptions} selectedClassId={selectedClassId} trimestre={trimestre} />
+        <form action="/bulletin" className="flex flex-wrap items-end gap-2">
+          <input type="hidden" name="class_id" value={selectedClassId} />
+          <input type="hidden" name="trimestre" value={trimestre} />
+          <select
+            name="student_id"
+            defaultValue={selectedStudentId}
+            className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+          >
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.full_name}
+              </option>
+            ))}
+          </select>
+          <button className="rounded-full border border-ardoise/30 px-3 py-1.5 text-xs text-ardoise hover:border-rouge hover:text-rouge">
+            Voir
+          </button>
+        </form>
+      </div>
 
       <BulletinTable
-        grades={grades ?? []}
-        appreciations={appreciations ?? []}
+        subjects={subjects}
+        entries={entries ?? []}
+        levels={levels}
         editableSubjects={editableSubjects}
         formContext={{
           studentId: selectedStudentId,
@@ -233,7 +257,11 @@ function ClassPicker({
   return (
     <form action="/bulletin" className="flex flex-wrap items-end gap-2">
       <input type="hidden" name="trimestre" value={trimestre} />
-      <select name="class_id" defaultValue={selectedClassId} className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm">
+      <select
+        name="class_id"
+        defaultValue={selectedClassId}
+        className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+      >
         {classOptions.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
@@ -248,70 +276,99 @@ function ClassPicker({
 }
 
 function BulletinTable({
-  grades,
-  appreciations,
+  subjects,
+  entries,
+  levels,
   editableSubjects,
   formContext,
 }: {
-  grades: Grade[];
-  appreciations: Appreciation[];
+  subjects: string[];
+  entries: BulletinEntry[];
+  levels: GradeLevel[];
   editableSubjects: Set<string> | null;
   formContext: { studentId: string; classId: string; trimestre: number } | null;
 }) {
-  const gradesBySubject = new Map<string, Grade[]>();
-  for (const g of grades) {
-    gradesBySubject.set(g.subject, [...(gradesBySubject.get(g.subject) ?? []), g]);
-  }
-  const appreciationBySubject = new Map(appreciations.map((a) => [a.subject, a.comment]));
-
-  const subjects = [...new Set([...gradesBySubject.keys(), ...appreciationBySubject.keys()])].sort();
+  const entryBySubject = new Map(entries.map((e) => [e.subject, e]));
 
   if (subjects.length === 0) {
-    return <p className="text-sm text-ardoise">Aucune évaluation pour ce trimestre.</p>;
+    return <p className="text-sm text-ardoise">Aucune matière enseignée dans cette classe.</p>;
   }
 
   return (
-    <ul className="flex flex-col gap-3">
-      {subjects.map((subject) => {
-        const subjectGrades = gradesBySubject.get(subject) ?? [];
-        const niveau = subjectNiveau(subjectGrades);
-        const comment = appreciationBySubject.get(subject) ?? "";
-        const canEdit = editableSubjects === null || editableSubjects.has(subject);
+    <div className="overflow-x-auto">
+      {formContext &&
+        subjects.map((subject) => {
+          const canEdit = editableSubjects === null || editableSubjects.has(subject);
+          if (!canEdit) return null;
+          return (
+            <form
+              key={subject}
+              id={`bulletin-${subject}`}
+              action={upsertBulletinEntry}
+              className="hidden"
+            >
+              <input type="hidden" name="student_id" value={formContext.studentId} />
+              <input type="hidden" name="class_id" value={formContext.classId} />
+              <input type="hidden" name="subject" value={subject} />
+              <input type="hidden" name="trimestre" value={formContext.trimestre} />
+            </form>
+          );
+        })}
 
-        return (
-          <li key={subject} className="rounded-xl border border-ardoise/15 bg-blanc p-4">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-rouge">{subject}</p>
-              <p className="text-sm font-medium text-encre">
-                {niveau !== null ? `${niveauInfo(niveau).symbol} ${niveauInfo(niveau).label}` : "—"}
-              </p>
-            </div>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-ardoise/20 text-left text-xs uppercase tracking-wide text-ardoise">
+            <th className="w-1/4 py-2 pr-3">Matière</th>
+            <th className="w-1/6 py-2 pr-3">Niveau</th>
+            <th className="py-2">Appréciation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {subjects.map((subject) => {
+            const entry = entryBySubject.get(subject);
+            const canEdit = formContext !== null && (editableSubjects === null || editableSubjects.has(subject));
+            const info = levelInfo(levels, entry?.niveau ?? null);
+            const formId = `bulletin-${subject}`;
 
-            {formContext && canEdit ? (
-              <form action={upsertAppreciation} className="mt-2 flex flex-col gap-2">
-                <input type="hidden" name="student_id" value={formContext.studentId} />
-                <input type="hidden" name="class_id" value={formContext.classId} />
-                <input type="hidden" name="subject" value={subject} />
-                <input type="hidden" name="trimestre" value={formContext.trimestre} />
-                <textarea
-                  name="comment"
-                  defaultValue={comment}
-                  placeholder="Appréciation…"
-                  rows={2}
-                  className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
-                />
-                <button className="self-start rounded-full border border-ardoise/30 px-3 py-1 text-xs text-ardoise hover:border-rouge hover:text-rouge">
-                  Enregistrer
-                </button>
-              </form>
-            ) : (
-              <p className="mt-2 text-sm text-ardoise">
-                {comment || "Pas d'appréciation pour l'instant."}
-              </p>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+            return (
+              <tr key={subject} className="border-b border-ardoise/10 align-top" style={{ breakInside: "avoid" }}>
+                <td className="py-3 pr-3 font-medium text-encre">{subject}</td>
+                <td className="py-3 pr-3">
+                  {canEdit ? (
+                    <NiveauSelect form={formId} name="niveau" defaultValue={entry?.niveau ?? null} levels={levels} />
+                  ) : null}
+                  <span className={canEdit ? "hidden print:inline" : ""}>
+                    {info ? `${info.symbol} ${info.label}` : "—"}
+                  </span>
+                </td>
+                <td className="py-3">
+                  {canEdit ? (
+                    <div className="flex flex-col gap-2">
+                      <textarea
+                        form={formId}
+                        name="comment"
+                        defaultValue={entry?.comment ?? ""}
+                        placeholder="Appréciation…"
+                        rows={2}
+                        className="print:hidden rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+                      />
+                      <button
+                        form={formId}
+                        className="print:hidden self-start rounded-full border border-ardoise/30 px-3 py-1 text-xs text-ardoise hover:border-rouge hover:text-rouge"
+                      >
+                        Enregistrer
+                      </button>
+                      <p className="hidden print:block">{entry?.comment || "—"}</p>
+                    </div>
+                  ) : (
+                    <p className="text-ardoise">{entry?.comment || "Pas d'appréciation pour l'instant."}</p>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

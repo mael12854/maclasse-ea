@@ -58,16 +58,23 @@ export type Grade = {
   created_at: string;
 };
 
-export type Appreciation = {
+export type BulletinEntry = {
   id: string;
   student_id: string;
   class_id: string;
   subject: string;
   trimestre: number;
+  niveau: number | null;
   comment: string;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type GradeLevel = {
+  value: number;
+  symbol: string;
+  label: string;
 };
 
 export const DAYS_OF_WEEK = [
@@ -82,15 +89,9 @@ export const DAYS_OF_WEEK = [
 
 export const TRIMESTRES = [1, 2, 3] as const;
 
-export const NIVEAUX = [
-  { value: 1, symbol: "①", label: "Non atteint" },
-  { value: 2, symbol: "②", label: "Partiellement atteint" },
-  { value: 3, symbol: "③", label: "Atteint" },
-  { value: 4, symbol: "④", label: "Excellente maîtrise" },
-] as const;
-
-export function niveauInfo(value: number) {
-  return NIVEAUX.find((n) => n.value === Math.round(value)) ?? NIVEAUX[0];
+export function levelInfo(levels: GradeLevel[], value: number | null): GradeLevel | null {
+  if (value === null) return null;
+  return levels.find((l) => l.value === Math.round(value)) ?? null;
 }
 
 export function currentTrimestre(): (typeof TRIMESTRES)[number] {

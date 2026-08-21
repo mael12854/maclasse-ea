@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createGrade, deleteGrade } from "@/lib/actions";
-import { NIVEAUX, TRIMESTRES, currentTrimestre, niveauInfo } from "@/lib/types";
-import type { Grade, Profile, TeacherClass } from "@/lib/types";
+import { TRIMESTRES, currentTrimestre, levelInfo } from "@/lib/types";
+import type { Grade, GradeLevel, Profile, TeacherClass } from "@/lib/types";
 
 export default async function NotesPage() {
   const supabase = await createClient();
@@ -14,6 +14,13 @@ export default async function NotesPage() {
     .select("*")
     .eq("id", user!.id)
     .single<Profile>();
+
+  const { data: levelsData } = await supabase
+    .from("grade_levels")
+    .select("*")
+    .order("value")
+    .returns<GradeLevel[]>();
+  const levels = levelsData ?? [];
 
   const { data: grades } = await supabase
     .from("grades")
@@ -59,23 +66,24 @@ export default async function NotesPage() {
       ? grades.reduce((sum, g) => sum + g.niveau * g.coefficient, 0) /
         grades.reduce((sum, g) => sum + g.coefficient, 0)
       : null;
+  const overallInfo = overall !== null ? levelInfo(levels, overall) : null;
 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-encre">Notes</h1>
-        {overall !== null && (
+        {overallInfo && (
           <p className="text-sm text-ardoise">
             Niveau général :{" "}
             <span className="font-semibold text-rouge">
-              {niveauInfo(overall).symbol} {niveauInfo(overall).label}
+              {overallInfo.symbol} {overallInfo.label}
             </span>
           </p>
         )}
       </div>
 
       <p className="text-xs text-ardoise">
-        Légende : {NIVEAUX.map((n) => `${n.symbol} ${n.label}`).join(" · ")}
+        Légende : {levels.map((n) => `${n.symbol} ${n.label}`).join(" · ")}
       </p>
 
       {canPost && (
@@ -103,7 +111,7 @@ export default async function NotesPage() {
             <input name="subject" placeholder="Matière" required className="rounded-lg border border-ardoise/30 px-3 py-2" />
           )}
           <select name="niveau" required className="rounded-lg border border-ardoise/30 px-3 py-2">
-            {NIVEAUX.map((n) => (
+            {levels.map((n) => (
               <option key={n.value} value={n.value}>
                 {n.symbol} {n.label}
               </option>
@@ -153,7 +161,10 @@ export default async function NotesPage() {
                 {new Date(g.graded_at).toLocaleDateString("fr-FR")}
               </p>
               <p className="mt-1 font-medium text-encre">
-                {niveauInfo(g.niveau).symbol} {niveauInfo(g.niveau).label}{" "}
+                {(() => {
+                  const info = levelInfo(levels, g.niveau);
+                  return info ? `${info.symbol} ${info.label}` : "—";
+                })()}{" "}
                 <span className="text-sm font-normal text-ardoise">coeff. {g.coefficient}</span>
               </p>
               {g.comment && <p className="mt-1 text-sm text-ardoise">{g.comment}</p>}

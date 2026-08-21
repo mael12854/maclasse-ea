@@ -3,10 +3,11 @@ import {
   createClassRow,
   createTeacherClass,
   deleteTeacherClass,
+  updateGradeLevel,
   updateProfileAssignment,
   updateTeacherClass,
 } from "@/lib/actions";
-import type { ClassRow, Profile, TeacherClass } from "@/lib/types";
+import type { ClassRow, GradeLevel, Profile, TeacherClass } from "@/lib/types";
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -16,6 +17,12 @@ export default async function AdminPage() {
     .select("*")
     .order("name")
     .returns<ClassRow[]>();
+
+  const { data: levels } = await supabase
+    .from("grade_levels")
+    .select("*")
+    .order("value")
+    .returns<GradeLevel[]>();
 
   const { data: profiles } = await supabase
     .from("profiles")
@@ -33,6 +40,38 @@ export default async function AdminPage() {
   return (
     <div className="flex flex-col gap-10">
       <h1 className="font-display text-2xl font-semibold text-encre">Administration</h1>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-encre">Barème d&apos;évaluation</h2>
+        <p className="text-xs text-ardoise">
+          Utilisé partout dans l&apos;app (notes, bulletin). Le symbole et le libellé sont
+          personnalisables.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {(levels ?? []).map((l) => (
+            <form
+              key={l.value}
+              action={updateGradeLevel}
+              className="flex items-center gap-2 rounded-xl border border-ardoise/15 bg-blanc p-3 text-sm"
+            >
+              <input type="hidden" name="value" value={l.value} />
+              <input
+                name="symbol"
+                defaultValue={l.symbol}
+                className="w-12 rounded-lg border border-ardoise/30 px-2 py-1 text-center"
+              />
+              <input
+                name="label"
+                defaultValue={l.label}
+                className="w-40 rounded-lg border border-ardoise/30 px-2 py-1"
+              />
+              <button className="rounded-full border border-ardoise/30 px-3 py-1 text-xs text-ardoise hover:border-rouge hover:text-rouge">
+                Enregistrer
+              </button>
+            </form>
+          ))}
+        </div>
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-encre">Classes</h2>

@@ -32,3 +32,14 @@ body {
   background: var(--color-craie);
   color: var(--color-encre);
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  body {
+    background: var(--color-blanc);
+  }
+}
