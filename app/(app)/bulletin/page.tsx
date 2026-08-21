@@ -329,13 +329,26 @@ function BulletinTable({
             const canEdit = formContext !== null && (editableSubjects === null || editableSubjects.has(subject));
             const info = levelInfo(levels, entry?.niveau ?? null);
             const formId = `bulletin-${subject}`;
+            // Remonte les champs après chaque sauvegarde réussie : une
+            // action de formulaire réinitialise automatiquement les
+            // champs qui lui sont rattachés (même hors de son arbre DOM,
+            // via l'attribut form=), donc sans ça le champ retombe à vide
+            // juste après l'enregistrement bien que la valeur soit
+            // correctement enregistrée en base.
+            const version = entry?.updated_at ?? "empty";
 
             return (
               <tr key={subject} className="border-b border-ardoise/10 align-top" style={{ breakInside: "avoid" }}>
                 <td className="py-3 pr-3 font-medium text-encre">{subject}</td>
                 <td className="py-3 pr-3">
                   {canEdit ? (
-                    <NiveauSelect form={formId} name="niveau" defaultValue={entry?.niveau ?? null} levels={levels} />
+                    <NiveauSelect
+                      key={version}
+                      form={formId}
+                      name="niveau"
+                      defaultValue={entry?.niveau ?? null}
+                      levels={levels}
+                    />
                   ) : null}
                   <span className={canEdit ? "hidden print:inline" : ""}>
                     {info ? `${info.symbol} ${info.label}` : "—"}
@@ -345,6 +358,7 @@ function BulletinTable({
                   {canEdit ? (
                     <div className="flex flex-col gap-2">
                       <textarea
+                        key={version}
                         form={formId}
                         name="comment"
                         defaultValue={entry?.comment ?? ""}
