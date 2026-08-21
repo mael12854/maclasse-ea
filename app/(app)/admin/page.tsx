@@ -4,6 +4,7 @@ import {
   createTeacherClass,
   deleteTeacherClass,
   updateProfileAssignment,
+  updateTeacherClass,
 } from "@/lib/actions";
 import type { ClassRow, Profile, TeacherClass } from "@/lib/types";
 
@@ -27,7 +28,6 @@ export default async function AdminPage() {
     .select("*, classes(name), profiles!teacher_classes_teacher_id_fkey(full_name)")
     .returns<(TeacherClass & { classes: { name: string }; profiles: { full_name: string } })[]>();
 
-  const classNames = new Map((classes ?? []).map((c) => [c.id, c.name]));
   const teachers = (profiles ?? []).filter((p) => p.role === "prof");
 
   return (
@@ -80,14 +80,20 @@ export default async function AdminPage() {
                 <option value="prof">Prof</option>
                 <option value="admin">Admin</option>
               </select>
-              <select name="class_id" defaultValue={p.class_id ?? ""} className="rounded-lg border border-ardoise/30 px-2 py-1">
-                <option value="">— pas de classe —</option>
-                {(classes ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              {p.role === "eleve" ? (
+                <select name="class_id" defaultValue={p.class_id ?? ""} className="rounded-lg border border-ardoise/30 px-2 py-1">
+                  <option value="">— pas de classe —</option>
+                  {(classes ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-xs text-ardoise">
+                  Classe(s) gérée(s) via les affectations ci-dessous
+                </span>
+              )}
               <button className="rounded-full border border-ardoise/30 px-3 py-1 text-ardoise hover:border-rouge hover:text-rouge">
                 Mettre à jour
               </button>
@@ -102,11 +108,27 @@ export default async function AdminPage() {
           {(teacherClasses ?? []).map((tc) => (
             <li
               key={tc.id}
-              className="flex items-center justify-between rounded-xl border border-ardoise/15 bg-blanc p-3 text-sm"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ardoise/15 bg-blanc p-3 text-sm"
             >
-              <span>
-                {tc.profiles?.full_name} — {tc.subject} — {classNames.get(tc.class_id) ?? tc.classes?.name}
-              </span>
+              <span className="min-w-[140px] font-medium text-encre">{tc.profiles?.full_name}</span>
+              <form action={updateTeacherClass} className="flex flex-wrap items-center gap-2">
+                <input type="hidden" name="id" value={tc.id} />
+                <select name="class_id" defaultValue={tc.class_id} className="rounded-lg border border-ardoise/30 px-2 py-1">
+                  {(classes ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  name="subject"
+                  defaultValue={tc.subject}
+                  className="w-28 rounded-lg border border-ardoise/30 px-2 py-1"
+                />
+                <button className="rounded-full border border-ardoise/30 px-3 py-1 text-xs text-ardoise hover:border-rouge hover:text-rouge">
+                  Mettre à jour
+                </button>
+              </form>
               <form
                 action={async () => {
                   "use server";

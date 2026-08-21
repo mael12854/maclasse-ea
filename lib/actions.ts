@@ -102,6 +102,20 @@ export async function createTeacherClass(formData: FormData) {
   revalidatePath("/admin");
 }
 
+export async function updateTeacherClass(formData: FormData) {
+  const supabase = await createClient();
+  const id = formData.get("id") as string;
+  const { error } = await supabase
+    .from("teacher_classes")
+    .update({
+      class_id: formData.get("class_id") as string,
+      subject: formData.get("subject") as string,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin");
+}
+
 export async function deleteTeacherClass(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("teacher_classes").delete().eq("id", id);
