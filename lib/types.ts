@@ -1,4 +1,4 @@
-export type Role = "admin" | "prof" | "eleve";
+export type Role = "admin" | "prof" | "eleve" | "parent";
 
 export type Profile = {
   id: string;
@@ -88,6 +88,12 @@ export type Absence = {
   motif: string | null;
   created_by: string | null;
   created_at: string;
+};
+
+export type Child = {
+  id: string;
+  full_name: string;
+  class_id: string | null;
 };
 
 export const DAYS_OF_WEEK = [

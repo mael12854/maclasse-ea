@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { upsertBulletinEntry } from "@/lib/actions";
+import { getChildren, pickChild } from "@/lib/parent";
 import { TRIMESTRES, currentTrimestre, levelInfo } from "@/lib/types";
 import type { BulletinEntry, ClassRow, GradeLevel, Profile, TeacherClass } from "@/lib/types";
 import NiveauSelect from "@/components/NiveauSelect";
@@ -16,7 +17,7 @@ function withParams(base: Record<string, string | undefined>, overrides: Record<
 export default async function BulletinPage({
   searchParams,
 }: {
-  searchParams: Promise<{ trimestre?: string; class_id?: string; student_id?: string }>;
+  searchParams: Promise<{ trimestre?: string; class_id?: string; student_id?: string; child_id?: string }>;
 }) {
   const sp = await searchParams;
   const trimestre = Number(sp.trimestre ?? currentTrimestre());
@@ -101,6 +102,90 @@ export default async function BulletinPage({
             <PrintButton />
           </div>
         </div>
+
+        <BulletinTable
+          subjects={subjects}
+          entries={entries ?? []}
+          levels={levels}
+          editableSubjects={new Set()}
+          formContext={null}
+        />
+      </div>
+    );
+  }
+
+  // --- Parent : bulletin d'un de ses enfants, lecture seule ---
+  if (profile.role === "parent") {
+    const children = await getChildren(supabase, profile.id);
+    const selectedChild = pickChild(children, sp.child_id);
+
+    if (!selectedChild) {
+      return <p className="text-sm text-ardoise">Aucun enfant rattaché pour l&apos;instant.</p>;
+    }
+    if (!selectedChild.class_id) {
+      return <p className="text-sm text-ardoise">Aucune classe assignée pour l&apos;instant.</p>;
+    }
+
+    const { data: classRow } = await supabase
+      .from("classes")
+      .select("*")
+      .eq("id", selectedChild.class_id)
+      .single<ClassRow>();
+
+    const { data: teacherSubjects } = await supabase
+      .from("teacher_classes")
+      .select("subject")
+      .eq("class_id", selectedChild.class_id);
+
+    const { data: entries } = await supabase
+      .from("bulletin_entries")
+      .select("*")
+      .eq("student_id", selectedChild.id)
+      .eq("trimestre", trimestre)
+      .returns<BulletinEntry[]>();
+
+    const subjects = [
+      ...new Set([...(teacherSubjects ?? []).map((t) => t.subject), ...(entries ?? []).map((e) => e.subject)]),
+    ].sort();
+
+    const baseParams = { child_id: selectedChild.id };
+
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-display text-2xl font-semibold text-encre">
+              Bulletin — {selectedChild.full_name}
+            </h1>
+            <p className="text-sm text-ardoise">
+              {classRow?.name} — Trimestre {trimestre}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {trimestreTabs(baseParams)}
+            <PrintButton />
+          </div>
+        </div>
+
+        {children.length > 1 && (
+          <form action="/bulletin" className="print:hidden flex items-end gap-2">
+            <input type="hidden" name="trimestre" value={trimestre} />
+            <select
+              name="child_id"
+              defaultValue={selectedChild.id}
+              className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+            >
+              {children.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name}
+                </option>
+              ))}
+            </select>
+            <button className="rounded-full border border-ardoise/30 px-3 py-1.5 text-xs text-ardoise hover:border-rouge hover:text-rouge">
+              Voir
+            </button>
+          </form>
+        )}
 
         <BulletinTable
           subjects={subjects}

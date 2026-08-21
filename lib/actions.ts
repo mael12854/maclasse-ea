@@ -212,6 +212,23 @@ export async function setAbsenceJustification(formData: FormData) {
   revalidatePath("/absences");
 }
 
+export async function createParentLink(formData: FormData) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("parent_students").insert({
+    parent_id: formData.get("parent_id") as string,
+    student_id: formData.get("student_id") as string,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin");
+}
+
+export async function deleteParentLink(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("parent_students").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin");
+}
+
 export async function createClassRow(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("classes").insert({

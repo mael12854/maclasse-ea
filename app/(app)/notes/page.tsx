@@ -1,9 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { createGrade, deleteGrade } from "@/lib/actions";
+import { getChildren, pickChild } from "@/lib/parent";
 import { TRIMESTRES, currentTrimestre, levelInfo } from "@/lib/types";
 import type { Grade, GradeLevel, Profile, TeacherClass } from "@/lib/types";
 
-export default async function NotesPage() {
+export default async function NotesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ child_id?: string }>;
+}) {
+  const sp = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,11 +28,16 @@ export default async function NotesPage() {
     .returns<GradeLevel[]>();
   const levels = levelsData ?? [];
 
-  const { data: grades } = await supabase
-    .from("grades")
-    .select("*")
-    .order("graded_at", { ascending: false })
-    .returns<Grade[]>();
+  const children = profile?.role === "parent" ? await getChildren(supabase, profile.id) : [];
+  const selectedChild = profile?.role === "parent" ? pickChild(children, sp.child_id) : null;
+
+  let gradesQuery = supabase.from("grades").select("*").order("graded_at", { ascending: false });
+  if (profile?.role === "parent") {
+    gradesQuery = selectedChild
+      ? gradesQuery.eq("student_id", selectedChild.id)
+      : gradesQuery.eq("student_id", "00000000-0000-0000-0000-000000000000");
+  }
+  const { data: grades } = await gradesQuery.returns<Grade[]>();
 
   const { data: classesById } = await supabase.from("classes").select("id, name");
   const classNames = new Map((classesById ?? []).map((c) => [c.id, c.name]));
@@ -61,8 +72,9 @@ export default async function NotesPage() {
     students = s ?? [];
   }
 
+  const showsOwnAverage = profile?.role === "eleve" || (profile?.role === "parent" && selectedChild);
   const overall =
-    profile?.role === "eleve" && grades && grades.length > 0
+    showsOwnAverage && grades && grades.length > 0
       ? grades.reduce((sum, g) => sum + g.niveau * g.coefficient, 0) /
         grades.reduce((sum, g) => sum + g.coefficient, 0)
       : null;
@@ -71,7 +83,9 @@ export default async function NotesPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-encre">Notes</h1>
+        <h1 className="font-display text-2xl font-semibold text-encre">
+          Notes{selectedChild ? ` — ${selectedChild.full_name}` : ""}
+        </h1>
         {overallInfo && (
           <p className="text-sm text-ardoise">
             Niveau général :{" "}
@@ -81,6 +95,29 @@ export default async function NotesPage() {
           </p>
         )}
       </div>
+
+      {profile?.role === "parent" && children.length > 1 && (
+        <form action="/notes" className="flex items-end gap-2">
+          <select
+            name="child_id"
+            defaultValue={selectedChild?.id}
+            className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+          >
+            {children.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.full_name}
+              </option>
+            ))}
+          </select>
+          <button className="rounded-full border border-ardoise/30 px-3 py-1.5 text-xs text-ardoise hover:border-rouge hover:text-rouge">
+            Voir
+          </button>
+        </form>
+      )}
+
+      {profile?.role === "parent" && children.length === 0 && (
+        <p className="text-sm text-ardoise">Aucun enfant rattaché pour l&apos;instant.</p>
+      )}
 
       <p className="text-xs text-ardoise">
         Légende : {levels.map((n) => `${n.symbol} ${n.label}`).join(" · ")}
@@ -156,7 +193,9 @@ export default async function NotesPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-rouge">
                 {g.subject}
-                {profile?.role !== "eleve" ? ` · ${studentNames.get(g.student_id) ?? ""}` : ""}
+                {profile?.role !== "eleve" && profile?.role !== "parent"
+                  ? ` · ${studentNames.get(g.student_id) ?? ""}`
+                  : ""}
                 {` · T${g.trimestre} · `}
                 {new Date(g.graded_at).toLocaleDateString("fr-FR")}
               </p>

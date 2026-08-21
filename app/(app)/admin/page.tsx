@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import {
   createClassRow,
+  createParentLink,
   createTeacherClass,
   createUser,
+  deleteParentLink,
   deleteTeacherClass,
   updateGradeLevel,
   updateProfileAssignment,
@@ -36,7 +38,16 @@ export default async function AdminPage() {
     .select("*, classes(name), profiles!teacher_classes_teacher_id_fkey(full_name)")
     .returns<(TeacherClass & { classes: { name: string }; profiles: { full_name: string } })[]>();
 
+  const { data: parentLinks } = await supabase
+    .from("parent_students")
+    .select(
+      "*, parent:profiles!parent_students_parent_id_fkey(full_name), student:profiles!parent_students_student_id_fkey(full_name)"
+    )
+    .returns<{ id: string; parent: { full_name: string }; student: { full_name: string } }[]>();
+
   const teachers = (profiles ?? []).filter((p) => p.role === "prof");
+  const parents = (profiles ?? []).filter((p) => p.role === "parent");
+  const students = (profiles ?? []).filter((p) => p.role === "eleve");
 
   return (
     <div className="flex flex-col gap-10">
@@ -141,6 +152,7 @@ export default async function AdminPage() {
             <select name="role" defaultValue="eleve" className="rounded-lg border border-ardoise/30 px-3 py-2">
               <option value="eleve">Élève</option>
               <option value="prof">Prof</option>
+              <option value="parent">Parent</option>
               <option value="admin">Admin</option>
             </select>
           </label>
@@ -180,6 +192,7 @@ export default async function AdminPage() {
               <select name="role" defaultValue={p.role} className="rounded-lg border border-ardoise/30 px-2 py-1">
                 <option value="eleve">Élève</option>
                 <option value="prof">Prof</option>
+                <option value="parent">Parent</option>
                 <option value="admin">Admin</option>
               </select>
               {p.role === "eleve" ? (
@@ -191,11 +204,15 @@ export default async function AdminPage() {
                     </option>
                   ))}
                 </select>
-              ) : (
+              ) : p.role === "prof" ? (
                 <span className="text-xs text-ardoise">
                   Classe(s) gérée(s) via les affectations ci-dessous
                 </span>
-              )}
+              ) : p.role === "parent" ? (
+                <span className="text-xs text-ardoise">
+                  Enfant(s) géré(s) via les liens ci-dessous
+                </span>
+              ) : null}
               <button className="rounded-full border border-ardoise/30 px-3 py-1 text-ardoise hover:border-rouge hover:text-rouge">
                 Mettre à jour
               </button>
@@ -263,6 +280,55 @@ export default async function AdminPage() {
             className="rounded-full bg-rouge px-4 py-2 text-sm font-medium text-blanc hover:opacity-90"
           >
             Affecter
+          </button>
+        </form>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-encre">Liens parent → élève</h2>
+        <ul className="flex flex-col gap-2">
+          {(parentLinks ?? []).map((link) => (
+            <li
+              key={link.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-ardoise/15 bg-blanc p-3 text-sm"
+            >
+              <span className="text-encre">
+                {link.parent?.full_name} → {link.student?.full_name}
+              </span>
+              <form
+                action={async () => {
+                  "use server";
+                  await deleteParentLink(link.id);
+                }}
+              >
+                <button className="text-xs text-ardoise hover:text-rouge">Retirer</button>
+              </form>
+            </li>
+          ))}
+          {(parentLinks ?? []).length === 0 && (
+            <p className="text-sm text-ardoise">Aucun lien pour l&apos;instant.</p>
+          )}
+        </ul>
+        <form action={createParentLink} className="flex flex-wrap items-end gap-2">
+          <select name="parent_id" required className="rounded-lg border border-ardoise/30 px-2 py-2 text-sm">
+            {parents.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.full_name}
+              </option>
+            ))}
+          </select>
+          <select name="student_id" required className="rounded-lg border border-ardoise/30 px-2 py-2 text-sm">
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.full_name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="rounded-full bg-rouge px-4 py-2 text-sm font-medium text-blanc hover:opacity-90"
+          >
+            Lier
           </button>
         </form>
       </section>

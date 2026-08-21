@@ -17,6 +17,7 @@ const ROLE_BADGE: Record<Role, { label: string; className: string }> = {
   admin: { label: "Admin", className: "bg-encre text-blanc" },
   prof: { label: "Prof", className: "bg-vert text-blanc" },
   eleve: { label: "Élève", className: "bg-or text-encre" },
+  parent: { label: "Parent", className: "bg-ardoise text-blanc" },
 };
 
 export default function Nav({ profile }: { profile: Profile }) {

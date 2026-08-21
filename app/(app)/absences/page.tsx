@@ -1,8 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAbsence, deleteAbsence, setAbsenceJustification } from "@/lib/actions";
+import { getChildren, pickChild } from "@/lib/parent";
 import type { Absence, Profile } from "@/lib/types";
 
-export default async function AbsencesPage() {
+export default async function AbsencesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ child_id?: string }>;
+}) {
+  const sp = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,6 +26,8 @@ export default async function AbsencesPage() {
   const canPost = profile?.role === "admin" || profile?.role === "prof";
   let absences: Absence[] = [];
   let students: { id: string; full_name: string; class_id: string | null }[] = [];
+  let children: { id: string; full_name: string; class_id: string | null }[] = [];
+  let selectedChild: { id: string; full_name: string; class_id: string | null } | null = null;
 
   if (profile?.role === "eleve") {
     const { data } = await supabase
@@ -64,6 +72,18 @@ export default async function AbsencesPage() {
       .order("date", { ascending: false })
       .returns<Absence[]>();
     absences = data ?? [];
+  } else if (profile?.role === "parent") {
+    children = await getChildren(supabase, profile.id);
+    selectedChild = pickChild(children, sp.child_id);
+    if (selectedChild) {
+      const { data } = await supabase
+        .from("absences")
+        .select("*")
+        .eq("student_id", selectedChild.id)
+        .order("date", { ascending: false })
+        .returns<Absence[]>();
+      absences = data ?? [];
+    }
   }
 
   const { data: profilesById } = await supabase.from("profiles").select("id, full_name");
@@ -71,7 +91,32 @@ export default async function AbsencesPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="font-display text-2xl font-semibold text-encre">Absences</h1>
+      <h1 className="font-display text-2xl font-semibold text-encre">
+        Absences{selectedChild ? ` — ${selectedChild.full_name}` : ""}
+      </h1>
+
+      {profile?.role === "parent" && children.length > 1 && (
+        <form action="/absences" className="flex items-end gap-2">
+          <select
+            name="child_id"
+            defaultValue={selectedChild?.id}
+            className="rounded-lg border border-ardoise/30 px-3 py-2 text-sm"
+          >
+            {children.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.full_name}
+              </option>
+            ))}
+          </select>
+          <button className="rounded-full border border-ardoise/30 px-3 py-1.5 text-xs text-ardoise hover:border-rouge hover:text-rouge">
+            Voir
+          </button>
+        </form>
+      )}
+
+      {profile?.role === "parent" && children.length === 0 && (
+        <p className="text-sm text-ardoise">Aucun enfant rattaché pour l&apos;instant.</p>
+      )}
 
       {canPost && (
         <form
@@ -124,7 +169,9 @@ export default async function AbsencesPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-rouge">
                 {a.type === "absence" ? "Absence" : "Retard"}
-                {profile?.role !== "eleve" ? ` · ${studentNames.get(a.student_id) ?? ""}` : ""}
+                {profile?.role !== "eleve" && profile?.role !== "parent"
+                  ? ` · ${studentNames.get(a.student_id) ?? ""}`
+                  : ""}
                 {" · "}
                 {new Date(a.date).toLocaleDateString("fr-FR")}
               </p>
