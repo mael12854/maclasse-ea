@@ -20,6 +20,15 @@ export default async function DevoirsPage() {
     .order("due_date", { ascending: true })
     .returns<Homework[]>();
 
+  const attachmentUrls = new Map<string, string>();
+  for (const hw of homework ?? []) {
+    if (!hw.attachment_path) continue;
+    const { data } = await supabase.storage
+      .from("devoirs")
+      .createSignedUrl(hw.attachment_path, 60 * 60);
+    if (data?.signedUrl) attachmentUrls.set(hw.id, data.signedUrl);
+  }
+
   const canPost = profile?.role === "admin" || profile?.role === "prof";
 
   let classOptions: ClassRow[] = [];
@@ -115,6 +124,10 @@ export default async function DevoirsPage() {
               className="rounded-lg border border-ardoise/30 px-3 py-2"
             />
           </label>
+          <label className="flex items-center gap-2 text-sm text-ardoise">
+            Pièce jointe (optionnel)
+            <input type="file" name="attachment" className="text-sm" />
+          </label>
           <button
             type="submit"
             className="mt-1 self-start rounded-full bg-rouge px-5 py-2 text-sm font-medium text-blanc hover:opacity-90"
@@ -138,6 +151,14 @@ export default async function DevoirsPage() {
               <p className="mt-1 font-medium text-encre">{hw.title}</p>
               {hw.description && (
                 <p className="mt-1 text-sm text-ardoise">{hw.description}</p>
+              )}
+              {attachmentUrls.has(hw.id) && (
+                <a
+                  href={attachmentUrls.get(hw.id)}
+                  className="mt-1 inline-block text-sm text-rouge underline underline-offset-2"
+                >
+                  Pièce jointe
+                </a>
               )}
             </div>
             {(profile?.role === "admin" || hw.created_by === profile?.id) && (

@@ -10,21 +10,46 @@ export async function createHomework(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Non connecté");
 
-  const { error } = await supabase.from("homework").insert({
-    class_id: formData.get("class_id") as string,
-    subject: formData.get("subject") as string,
-    title: formData.get("title") as string,
-    description: (formData.get("description") as string) || null,
-    due_date: formData.get("due_date") as string,
-    created_by: user.id,
-  });
+  const { data: homework, error } = await supabase
+    .from("homework")
+    .insert({
+      class_id: formData.get("class_id") as string,
+      subject: formData.get("subject") as string,
+      title: formData.get("title") as string,
+      description: (formData.get("description") as string) || null,
+      due_date: formData.get("due_date") as string,
+      created_by: user.id,
+    })
+    .select()
+    .single();
   if (error) throw new Error(error.message);
+
+  const file = formData.get("attachment") as File | null;
+  if (file && file.size > 0) {
+    const path = `${homework.id}/${file.name}`;
+    const { error: uploadError } = await supabase.storage.from("devoirs").upload(path, file);
+    if (uploadError) throw new Error(uploadError.message);
+
+    const { error: updateError } = await supabase
+      .from("homework")
+      .update({ attachment_path: path })
+      .eq("id", homework.id);
+    if (updateError) throw new Error(updateError.message);
+  }
 
   revalidatePath("/devoirs");
 }
 
 export async function deleteHomework(id: string) {
   const supabase = await createClient();
+  const { data: homework } = await supabase
+    .from("homework")
+    .select("attachment_path")
+    .eq("id", id)
+    .single();
+  if (homework?.attachment_path) {
+    await supabase.storage.from("devoirs").remove([homework.attachment_path]);
+  }
   const { error } = await supabase.from("homework").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/devoirs");
@@ -141,6 +166,50 @@ export async function createUser(formData: FormData) {
   }
 
   revalidatePath("/admin");
+}
+
+export async function createAbsence(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non connecté");
+
+  const studentId = formData.get("student_id") as string;
+  const { data: student } = await supabase
+    .from("profiles")
+    .select("class_id")
+    .eq("id", studentId)
+    .single();
+  if (!student?.class_id) throw new Error("Élève sans classe assignée.");
+
+  const { error } = await supabase.from("absences").insert({
+    student_id: studentId,
+    class_id: student.class_id,
+    date: formData.get("date") as string,
+    type: formData.get("type") as string,
+    justifiee: formData.get("justifiee") === "on",
+    motif: (formData.get("motif") as string) || null,
+    created_by: user.id,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/absences");
+}
+
+export async function deleteAbsence(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("absences").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/absences");
+}
+
+export async function setAbsenceJustification(formData: FormData) {
+  const supabase = await createClient();
+  const id = formData.get("id") as string;
+  const justifiee = formData.get("justifiee") === "true";
+  const { error } = await supabase.from("absences").update({ justifiee }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/absences");
 }
 
 export async function createClassRow(formData: FormData) {

@@ -28,6 +28,7 @@ export type Homework = {
   title: string;
   description: string | null;
   due_date: string;
+  attachment_path: string | null;
   created_by: string | null;
   created_at: string;
 };
@@ -75,6 +76,18 @@ export type GradeLevel = {
   value: number;
   symbol: string;
   label: string;
+};
+
+export type Absence = {
+  id: string;
+  student_id: string;
+  class_id: string;
+  date: string;
+  type: "absence" | "retard";
+  justifiee: boolean;
+  motif: string | null;
+  created_by: string | null;
+  created_at: string;
 };
 
 export const DAYS_OF_WEEK = [
